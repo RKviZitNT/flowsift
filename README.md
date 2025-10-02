@@ -54,5 +54,5 @@ ipVersionName         := flowsift.GetIPVersionName(fieldValue.Value)         // 
 
 ## Ссылки
 
-* [NetFlow v9 Specification](https://datatracker.ietf.org/doc/html/rfc3954)
-* [IPFix Specification (RFC 7071)](https://datatracker.ietf.org/doc/html/rfc7011)
+* [NetFlow v9 Specification (RFC 3954)](https://datatracker.ietf.org/doc/html/rfc3954)
+* [IPFix Specification (RFC 7011)](https://datatracker.ietf.org/doc/html/rfc7011)
