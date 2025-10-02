@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// ParseNetFlowV9 разбирает NetFlow v9 пакет
+// Parses a NetFlow v9 packet
 func ParseNetFlowV9(data []byte, sourceAddr net.IP, templates *TemplateCache) (*Packet, error) {
 	if len(data) < 20 {
 		return nil, fmt.Errorf("NetFlow v9 packet too short: %d bytes", len(data))
@@ -49,7 +49,6 @@ func ParseNetFlowV9(data []byte, sourceAddr net.IP, templates *TemplateCache) (*
 		case flowSetID == 0:
 			flowSet, err = parseTemplateFlowSet(flowSetData)
 			if err == nil {
-				// Добавляем шаблоны в кэш
 				if templateFlowSet, ok := flowSet.(*TemplateFlowSet); ok {
 					for _, template := range templateFlowSet.Templates {
 						templates.Add(sourceAddr.String(), template.TemplateID, &template)
@@ -63,7 +62,6 @@ func ParseNetFlowV9(data []byte, sourceAddr net.IP, templates *TemplateCache) (*
 			if template != nil {
 				flowSet, err = parseDataFlowSet(flowSetData, flowSetID, template)
 			} else {
-				// Шаблон не найден, создаем базовый DataFlowSet без парсинга записей
 				flowSet = &DataFlowSet{
 					ID:     flowSetID,
 					Length: length,
@@ -90,7 +88,7 @@ func ParseNetFlowV9(data []byte, sourceAddr net.IP, templates *TemplateCache) (*
 	return packet, nil
 }
 
-// ParseIPFix разбирает IPFix пакет
+// Parses the IPFix packet
 func ParseIPFix(data []byte, sourceAddr net.IP, templates *TemplateCache) (*Packet, error) {
 	if len(data) < 16 {
 		return nil, fmt.Errorf("IPFix packet too short: %d bytes", len(data))
@@ -129,7 +127,6 @@ func ParseIPFix(data []byte, sourceAddr net.IP, templates *TemplateCache) (*Pack
 		case flowSetID == 2:
 			flowSet, err = parseIPFixTemplateFlowSet(flowSetData)
 			if err == nil {
-				// Добавляем шаблоны в кэш
 				if templateFlowSet, ok := flowSet.(*TemplateFlowSet); ok {
 					for _, template := range templateFlowSet.Templates {
 						templates.Add(sourceAddr.String(), template.TemplateID, &template)
@@ -279,7 +276,6 @@ func parseDataFlowSet(data []byte, flowSetID uint16, template *TemplateRecord) (
 		recordStart := dataOffset
 		for _, field := range template.Fields {
 			if dataOffset+int(field.Length) > len(data) {
-				// Неполная запись, возвращаем что успели распарсить
 				return flowSet, nil
 			}
 
@@ -294,7 +290,6 @@ func parseDataFlowSet(data []byte, flowSetID uint16, template *TemplateRecord) (
 			dataOffset += int(field.Length)
 		}
 
-		// Выравнивание
 		recordLength := dataOffset - recordStart
 		padding := calculatePadding(recordLength)
 		if dataOffset+padding <= len(data) {
@@ -308,26 +303,21 @@ func parseDataFlowSet(data []byte, flowSetID uint16, template *TemplateRecord) (
 }
 
 func parseIPFixTemplateFlowSet(data []byte) (*TemplateFlowSet, error) {
-	// Аналогично NetFlow v9
 	return parseTemplateFlowSet(data)
 }
 
 func parseIPFixOptionsTemplateFlowSet(data []byte) (*OptionsTemplateFlowSet, error) {
-	// Аналогично NetFlow v9
 	return parseOptionsTemplateFlowSet(data)
 }
 
 func parseIPFixDataFlowSet(data []byte, flowSetID uint16, template *TemplateRecord) (*DataFlowSet, error) {
-	// Аналогично NetFlow v9
 	return parseDataFlowSet(data, flowSetID, template)
 }
 
-// calculatePadding вычисляет выравнивание
 func calculatePadding(length int) int {
 	return (4 - (length % 4)) % 4
 }
 
-// bytesToUint64 преобразует байты в uint64
 func bytesToUint64(data []byte) uint64 {
 	var value uint64
 	for _, b := range data {

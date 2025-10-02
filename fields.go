@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// ParseFieldValue парсит значение поля на основе его типа
+// Parses the value of a field based on its type
 func ParseFieldValue(fieldType uint16, data []byte, length uint16) interface{} {
 	switch fieldType {
 	case 1, 2, 3, 23, 24: // IN_BYTES, IN_PKTS, FLOWS, OUT_BYTES, OUT_PKTS
@@ -63,7 +63,6 @@ func ParseFieldValue(fieldType uint16, data []byte, length uint16) interface{} {
 			return data[0]
 		}
 	default:
-		// Для неизвестных полей возвращаем сырые данные или преобразуем в число
 		if length <= 8 {
 			return bytesToUint64(data)
 		}
@@ -72,7 +71,7 @@ func ParseFieldValue(fieldType uint16, data []byte, length uint16) interface{} {
 	return nil
 }
 
-// GetFieldName возвращает имя поля по его типу
+// Returns the name of a field by its type
 func GetFieldName(fieldType uint16) string {
 	fieldNames := map[uint16]string{
 		1:   "IN_BYTES",
@@ -167,7 +166,7 @@ func GetFieldName(fieldType uint16) string {
 		103: "layer2packetSectionSize",
 		104: "layer2packetSectionData",
 
-		// Дополнительные стандартные поля IPFIX
+		// Additional standard IPFIX fields
 		127: "observationPointId",
 		128: "selectorId",
 		129: "informationElementId",
@@ -240,7 +239,7 @@ func GetFieldName(fieldType uint16) string {
 		196: "dot1qCustomerSourceMacAddress",
 		197: "dot1qCustomerDestinationMacAddress",
 
-		// 200-233: Поля для информации о маршрутизации
+		// Routing Information Fields
 		200: "bgpNextAdjacentAsNumber",
 		201: "bgpPrevAdjacentAsNumber",
 		202: "exporterIPv4Address",
@@ -276,7 +275,7 @@ func GetFieldName(fieldType uint16) string {
 		232: "flowDurationMicroseconds",
 		233: "flowDirection",
 
-		// 234-242: Поля для информации о процессе
+		// Process information fields
 		234: "interfaceName",
 		235: "interfaceDescription",
 		236: "samplerName",
@@ -287,7 +286,7 @@ func GetFieldName(fieldType uint16) string {
 		241: "forwardingStatus",
 		242: "mplsVpnRouteDistinguisher",
 
-		// 243-293: Дополнительные поля
+		// Additional fields
 		243: "mplsTopLabelPrefixLength",
 		244: "srcTrafficIndex",
 		245: "dstTrafficIndex",
@@ -338,7 +337,7 @@ func GetFieldName(fieldType uint16) string {
 		292: "dstTrafficIndex",
 		293: "applicationDescription",
 
-		// 294-325: Enterprise-specific и дополнительные поля
+		// Enterprise-specific and additional fields
 		294: "applicationId",
 		295: "applicationName",
 		296: "postipDiffServCodePoint",
@@ -372,7 +371,7 @@ func GetFieldName(fieldType uint16) string {
 		324: "samplingPacketSpace",
 		325: "samplingTimeInterval",
 
-		// 326-455: Дополнительные современные поля
+		// Additional modern fields
 		326: "samplingTimeSpace",
 		327: "samplingSize",
 		328: "samplingPopulation",
@@ -511,10 +510,10 @@ func GetFieldName(fieldType uint16) string {
 	return fmt.Sprintf("UNKNOWN_%d", fieldType)
 }
 
-// GetProtocolName возвращает имя протокола
+// Returns the protocol name
 func GetProtocolName(protocol uint8) string {
 	protocols := map[uint8]string{
-		0:   "HOPOPT", // IPv6 Hop‑by‑Hop Option
+		0:   "HOPOPT",
 		1:   "ICMP",
 		2:   "IGMP",
 		3:   "GGP",
@@ -669,7 +668,7 @@ func GetProtocolName(protocol uint8) string {
 	return "Unknown"
 }
 
-// GetServiceName возвращает имя сервиса по порту
+// Returns the service name by port
 func GetServiceName(port uint16) string {
 	services := map[uint16]string{
 		20:    "FTP-DATA",
@@ -765,7 +764,7 @@ func GetServiceName(port uint16) string {
 	return "Unknown"
 }
 
-// GetSamplingAlgorithmName возвращает тип алгоритма сэмплирования
+// Returns the type of sampling algorithm
 func GetSamplingAlgorithmName(algorithm uint8) string {
 	samplingAlgorithms := map[uint8]string{
 		0:  "Unknown / Not Used",
@@ -788,7 +787,7 @@ func GetSamplingAlgorithmName(algorithm uint8) string {
 	return "Unknown"
 }
 
-// GetIPVersionName возвращает версию IP
+// Returns the IP version
 func GetIPVersionName(version uint8) string {
 	ipVersions := map[uint8]string{
 		4: "IPv4",
@@ -801,7 +800,7 @@ func GetIPVersionName(version uint8) string {
 	return "Unknown"
 }
 
-// ParseTCPFlags парсит TCP флаги
+// Parses TCP flags
 func ParseTCPFlags(flags uint8) string {
 	var result string
 	if flags&0x01 != 0 {
@@ -834,7 +833,7 @@ func ParseTCPFlags(flags uint8) string {
 	return result
 }
 
-// FormatFieldValue форматирует значение поля для вывода
+// Formats the field value for output
 func FormatFieldValue(fieldType uint16, value interface{}) string {
 	switch v := value.(type) {
 	case uint64:
@@ -842,21 +841,21 @@ func FormatFieldValue(fieldType uint16, value interface{}) string {
 	case uint32:
 		return fmt.Sprintf("%d", v)
 	case uint16:
-		if fieldType == 7 || fieldType == 11 { // Порт
+		if fieldType == 7 || fieldType == 11 { // Port
 			return fmt.Sprintf("%d (%s)", v, GetServiceName(v))
 		}
 		return fmt.Sprintf("%d", v)
 	case uint8:
-		if fieldType == 4 { // Протокол
+		if fieldType == 4 { // Protocol
 			return fmt.Sprintf("%d (%s)", v, GetProtocolName(v))
 		}
-		if fieldType == 6 { // TCP флаги
+		if fieldType == 6 { // TCP flags
 			return fmt.Sprintf("0x%02x (%s)", v, ParseTCPFlags(v))
 		}
-		if fieldType == 35 { // Алгоритм сэмплирования
+		if fieldType == 35 { // Sampling algorithm
 			return fmt.Sprintf("%d (%s)", v, GetSamplingAlgorithmName(v))
 		}
-		if fieldType == 60 { // Версия IP
+		if fieldType == 60 { // IP version
 			return fmt.Sprintf("%d (%s)", v, GetIPVersionName(v))
 		}
 		return fmt.Sprintf("%d", v)

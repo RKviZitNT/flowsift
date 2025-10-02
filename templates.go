@@ -5,33 +5,33 @@ import (
 	"time"
 )
 
-// TemplateCache кэш шаблонов
+// Template cache
 type TemplateCache struct {
 	templates map[string]map[uint16]*TemplateRecord
 	mutex     sync.RWMutex
 	timeout   time.Duration
 }
 
-// TemplateRecord запись шаблона
+// Template entry
 type TemplateRecord struct {
 	TemplateID uint16
 	FieldCount uint16
 	Fields     []FieldSpecifier
 }
 
-// FieldSpecifier спецификация поля
+// Field specification
 type FieldSpecifier struct {
 	Type   uint16
 	Length uint16
 }
 
-// FlowSet интерфейс для наборов данных
+// Interface for data sets
 type FlowSet interface {
 	GetID() uint16
 	GetLength() uint16
 }
 
-// DataFlowSet набор данных
+// Data set
 type DataFlowSet struct {
 	ID      uint16
 	Length  uint16
@@ -41,7 +41,7 @@ type DataFlowSet struct {
 func (d *DataFlowSet) GetID() uint16     { return d.ID }
 func (d *DataFlowSet) GetLength() uint16 { return d.Length }
 
-// TemplateFlowSet набор шаблонов
+// Set of templates
 type TemplateFlowSet struct {
 	ID        uint16
 	Length    uint16
@@ -51,7 +51,7 @@ type TemplateFlowSet struct {
 func (t *TemplateFlowSet) GetID() uint16     { return t.ID }
 func (t *TemplateFlowSet) GetLength() uint16 { return t.Length }
 
-// OptionsTemplateFlowSet набор шаблонов опций
+// Set of option templates
 type OptionsTemplateFlowSet struct {
 	ID        uint16
 	Length    uint16
@@ -61,7 +61,7 @@ type OptionsTemplateFlowSet struct {
 func (o *OptionsTemplateFlowSet) GetID() uint16     { return o.ID }
 func (o *OptionsTemplateFlowSet) GetLength() uint16 { return o.Length }
 
-// OptionsTemplateRecord шаблон опций
+// Options template
 type OptionsTemplateRecord struct {
 	TemplateID       uint16
 	ScopeFieldCount  uint16
@@ -69,19 +69,19 @@ type OptionsTemplateRecord struct {
 	Fields           []FieldSpecifier
 }
 
-// DataRecord запись данных
+// Data recording
 type DataRecord struct {
 	Fields map[uint16]FieldValue
 }
 
-// FieldValue значение поля
+// Field value
 type FieldValue struct {
 	Type  uint16
 	Value interface{}
 	Bytes []byte
 }
 
-// NewTemplateCache создает новый кэш шаблонов
+// Creates a new template cache
 func NewTemplateCache(timeout time.Duration) *TemplateCache {
 	tc := &TemplateCache{
 		templates: make(map[string]map[uint16]*TemplateRecord),
@@ -91,7 +91,7 @@ func NewTemplateCache(timeout time.Duration) *TemplateCache {
 	return tc
 }
 
-// Add добавляет шаблон в кэш
+// Adds a template to the cache
 func (tc *TemplateCache) Add(exporter string, templateID uint16, template *TemplateRecord) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
@@ -103,12 +103,11 @@ func (tc *TemplateCache) Add(exporter string, templateID uint16, template *Templ
 	tc.templates[exporter][templateID] = template
 }
 
-// Get получает шаблон из кэша
+// Gets the template from the cache
 func (tc *TemplateCache) Get(templateID uint16) *TemplateRecord {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
-	// Для простоты возвращаем первый найденный шаблон
 	for _, exporterTemplates := range tc.templates {
 		if template, exists := exporterTemplates[templateID]; exists {
 			return template
@@ -117,7 +116,7 @@ func (tc *TemplateCache) Get(templateID uint16) *TemplateRecord {
 	return nil
 }
 
-// GetAll возвращает все шаблоны
+// Returns all patterns
 func (tc *TemplateCache) GetAll() map[uint16]*TemplateRecord {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
@@ -131,7 +130,7 @@ func (tc *TemplateCache) GetAll() map[uint16]*TemplateRecord {
 	return result
 }
 
-// Clear очищает кэш
+// Clears the cache
 func (tc *TemplateCache) Clear() {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
@@ -142,7 +141,7 @@ func (tc *TemplateCache) cleanup() {
 	ticker := time.NewTicker(tc.timeout)
 	for range ticker.C {
 		tc.mutex.Lock()
-		// Упрощенная очистка
+		tc.Clear()
 		tc.mutex.Unlock()
 	}
 }

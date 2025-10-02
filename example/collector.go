@@ -47,8 +47,7 @@ func handlePacket(parser *flowsift.Parser, data []byte, sourceAddr net.IP) {
 		return
 	}
 
-	fmt.Printf("\n=== Received %s packet from %s at %s ===\n",
-		getVersionName(packet.Version), sourceAddr, time.Now().Format("15:04:05.000"))
+	fmt.Printf("\n=== Received %s packet from %s at %s ===\n", getVersionName(packet.Version), sourceAddr, time.Now().Format("15:04:05.000"))
 
 	fmt.Printf("Packet Info:\n")
 	fmt.Printf("  Version: %d\n", packet.Version)

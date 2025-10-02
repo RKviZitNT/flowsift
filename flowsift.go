@@ -6,30 +6,30 @@ import (
 	"time"
 )
 
-// Parser основной парсер NetFlow/IPFix
+// NetFlow/IPFix core parser
 type Parser struct {
 	templates *TemplateCache
 }
 
-// Config конфигурация парсера
+// Parser configuration
 type Config struct {
 	TemplateTimeout time.Duration
 }
 
-// Packet результат парсинга
+// Parsing result
 type Packet struct {
 	Version    uint16
-	Count      uint16 // В IPFix - Lenght
+	Count      uint16
 	SysUptime  uint32
 	UnixSec    uint32
 	Sequence   uint32
-	SourceID   uint32 // В IPFix - Observation Domain ID
+	SourceID   uint32
 	SourceAddr net.IP
 	Timestamp  time.Time
 	FlowSets   []FlowSet
 }
 
-// NewParser создает новый парсер
+// Creates a new parser
 func NewParser(config ...Config) *Parser {
 	cfg := Config{}
 	if len(config) > 0 {
@@ -45,7 +45,7 @@ func NewParser(config ...Config) *Parser {
 	}
 }
 
-// Parse разбирает NetFlow/IPFix пакет
+// Parses a NetFlow/IPFix packet
 func (p *Parser) Parse(data []byte, sourceAddr net.IP) (*Packet, error) {
 	if len(data) < 4 {
 		return nil, fmt.Errorf("packet too short: %d bytes", len(data))
@@ -63,17 +63,17 @@ func (p *Parser) Parse(data []byte, sourceAddr net.IP) (*Packet, error) {
 	}
 }
 
-// GetTemplates возвращает текущие шаблоны
+// Returns current templates
 func (p *Parser) GetTemplates() map[uint16]*TemplateRecord {
 	return p.templates.GetAll()
 }
 
-// ClearTemplates очищает кэш шаблонов
+// Clears the template cache
 func (p *Parser) ClearTemplates() {
 	p.templates.Clear()
 }
 
-// GetTemplate возвращает конкретный шаблон
+// Returns a specific template
 func (p *Parser) GetTemplate(templateID uint16) *TemplateRecord {
 	return p.templates.Get(templateID)
 }
