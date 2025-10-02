@@ -36,7 +36,7 @@ func main() {
 			continue
 		}
 
-		go handlePacket(parser, buffer[:n], clientAddr.IP)
+		handlePacket(parser, buffer[:n], clientAddr.IP)
 	}
 }
 

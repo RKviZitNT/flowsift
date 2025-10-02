@@ -19,11 +19,11 @@ type Config struct {
 // Packet результат парсинга
 type Packet struct {
 	Version    uint16
-	Count      uint16
+	Count      uint16 // В IPFix - Lenght
 	SysUptime  uint32
 	UnixSec    uint32
 	Sequence   uint32
-	SourceID   uint32
+	SourceID   uint32 // В IPFix - Observation Domain ID
 	SourceAddr net.IP
 	Timestamp  time.Time
 	FlowSets   []FlowSet
