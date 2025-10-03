@@ -43,10 +43,12 @@ packet, err := parcer.Parce(data, sourceIP)
 // Работа с полями
 fieldName             := flowsift.GetFieldName(field.Type)                      // ANY FIELD
 formattedValue        := flowsift.FormatFieldValue(fieldType, fieldValue.Value) // ANY FIELD
+flowVersionName       := flowsift.GetFlowVersionName(packet.Version)            // Packet.Version
 protocolName          := flowsift.GetProtocolName(fieldValue.Value)             // PROTOCOL
 serviceName           := flowsift.GetServiceName(fieldValue.Value)              // L4_SRC_PORT, L4_DST_PORT
 samplingAlgorithmName := flowsift.GetSamplingAlgorithmName(fieldValue.Value)    // SAMPLING_ALGORITHM
 ipVersionName         := flowsift.GetIPVersionName(fieldValue.Value)            // IPV4_SRC_ADDR, IPV6_SRC_ADDR ...
+domainName            := flowsift.GetDomainName(ipAddr)                         // IPV4_SRC_ADDR, IPV6_SRC_ADDR ...
 ```
 
 ## Лиценция
