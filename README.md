@@ -38,7 +38,7 @@ type Packet struct {
 parser := flowsift.NewParser()
 
 // Парсинг пакета
-packet, err := parcer.Parce(data, sourceIP)
+packet, err := parser.Parce(data, sourceIP)
 
 // Работа с полями
 fieldName             := flowsift.GetFieldName(field.Type)                      // ANY FIELD
@@ -48,7 +48,7 @@ protocolName          := flowsift.GetProtocolName(fieldValue.Value)             
 serviceName           := flowsift.GetServiceName(fieldValue.Value)              // L4_SRC_PORT, L4_DST_PORT
 samplingAlgorithmName := flowsift.GetSamplingAlgorithmName(fieldValue.Value)    // SAMPLING_ALGORITHM
 ipVersionName         := flowsift.GetIPVersionName(fieldValue.Value)            // IPV4_SRC_ADDR, IPV6_SRC_ADDR ...
-domainName            := flowsift.GetDomainName(ipAddr)                         // IPV4_SRC_ADDR, IPV6_SRC_ADDR ...
+domainName            := flowsift.GetDomainName(ipAddr)                         // ANY IPv4 OR IPv6 ADDRESS
 ```
 
 ## Лиценция
