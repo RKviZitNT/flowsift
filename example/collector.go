@@ -47,7 +47,7 @@ func handlePacket(parser *flowsift.Parser, data []byte, sourceAddr net.IP) {
 		return
 	}
 
-	fmt.Printf("\n=== Received %s packet from %s at %s ===\n", getVersionName(packet.Version), sourceAddr, time.Now().Format("15:04:05.000"))
+	fmt.Printf("\n=== Received %s packet from %s at %s ===\n", flowsift.GetFlowVersionName(packet.Version), sourceAddr, time.Now().Format("15:04:05.000"))
 
 	fmt.Printf("Packet Info:\n")
 	fmt.Printf("  Version: %d\n", packet.Version)
@@ -92,15 +92,4 @@ func handlePacket(parser *flowsift.Parser, data []byte, sourceAddr net.IP) {
 	fmt.Printf("  Processed: %d Template FlowSets, %d Data FlowSets\n", templateCount, dataCount)
 	fmt.Printf("  Total templates in memory: %d\n", len(parser.GetTemplates()))
 	fmt.Printf("=== End of packet ===\n")
-}
-
-func getVersionName(version uint16) string {
-	switch version {
-	case 9:
-		return "NetFlow v9"
-	case 10:
-		return "IPFix"
-	default:
-		return fmt.Sprintf("Unknown (%d)", version)
-	}
 }
