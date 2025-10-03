@@ -3,6 +3,8 @@ package flowsift
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
+	"strings"
 )
 
 // Parses the value of a field based on its type
@@ -886,6 +888,29 @@ func GetIPVersionName(version uint8) string {
 		return name
 	}
 	return "Unknown"
+}
+
+// Returns the flow version
+func GetFlowVersionName(version uint16) string {
+	switch version {
+	case 9:
+		return "NetFlow v9"
+	case 10:
+		return "IPFix"
+	default:
+		return fmt.Sprintf("Unknown (%d)", version)
+	}
+}
+
+// Returns the domain name
+func GetDomainName(ip string) string {
+	names, err := net.LookupAddr(ip)
+	if err != nil || len(names) == 0 {
+		return ""
+	}
+
+	domain := strings.TrimSuffix(names[0], ".")
+	return domain
 }
 
 // Parses TCP flags
