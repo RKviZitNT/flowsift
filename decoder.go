@@ -62,16 +62,10 @@ func ParseNetFlowV9(data []byte, sourceAddr net.IP, templates *TemplateCache) (*
 			if template != nil {
 				flowSet, err = parseDataFlowSet(flowSetData, flowSetID, template)
 			} else {
-				flowSet = &DataFlowSet{
-					ID:     flowSetID,
-					Length: length,
-				}
+				return nil, fmt.Errorf("template not found for FlowSet ID %d (source: %s)", flowSetID, sourceAddr.String())
 			}
 		default:
-			flowSet = &DataFlowSet{
-				ID:     flowSetID,
-				Length: length,
-			}
+			return nil, fmt.Errorf("unknown FlowSet ID: %d", flowSetID)
 		}
 
 		if err != nil {
@@ -140,16 +134,10 @@ func ParseIPFix(data []byte, sourceAddr net.IP, templates *TemplateCache) (*Pack
 			if template != nil {
 				flowSet, err = parseIPFixDataFlowSet(flowSetData, flowSetID, template)
 			} else {
-				flowSet = &DataFlowSet{
-					ID:     flowSetID,
-					Length: length,
-				}
+				return nil, fmt.Errorf("template not found for FlowSet ID %d (source: %s)", flowSetID, sourceAddr.String())
 			}
 		default:
-			flowSet = &DataFlowSet{
-				ID:     flowSetID,
-				Length: length,
-			}
+			return nil, fmt.Errorf("unknown FlowSet ID: %d", flowSetID)
 		}
 
 		if err != nil {
