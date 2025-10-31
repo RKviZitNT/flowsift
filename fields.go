@@ -1,71 +1,123 @@
 package flowsift
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"strings"
 )
 
-// Parses the value of a field based on its type
+const unknownLabel = "Unknown"
+
+// Field type identifiers used in parsing/formatting.
+const (
+	ftInBytes           uint16 = 1
+	ftInPkts            uint16 = 2
+	ftFlows             uint16 = 3
+	ftProtocol          uint16 = 4
+	ftSrcTOS            uint16 = 5
+	ftTCPFlags          uint16 = 6
+	ftL4SrcPort         uint16 = 7
+	ftIPv4SrcAddr       uint16 = 8
+	ftInputSNMP         uint16 = 10
+	ftL4DstPort         uint16 = 11
+	ftIPv4DstAddr       uint16 = 12
+	ftIPv4NextHop       uint16 = 15
+	ftSrcAS             uint16 = 16
+	ftDstAS             uint16 = 17
+	ftIPv6SrcAddr       uint16 = 27
+	ftIPv6DstAddr       uint16 = 28
+	ftIPv6NextHop       uint16 = 62
+	ftIPv6FlowLabel     uint16 = 31
+	ftOutputSNMP        uint16 = 14
+	ftLastSwitched      uint16 = 21
+	ftFirstSwitched     uint16 = 22
+	ftSamplingInterval  uint16 = 34
+	ftICMPType          uint16 = 32
+	ftSamplingAlgorithm uint16 = 35
+	ftSrcMAC            uint16 = 56
+	ftDstMAC            uint16 = 57
+	ftInDstMAC          uint16 = 80
+	ftOutSrcMAC         uint16 = 81
+	ftSrcVLAN           uint16 = 58
+	ftDstVLAN           uint16 = 59
+	ftIPProtocolVersion uint16 = 60
+	ftOutBytes          uint16 = 23
+	ftOutPkts           uint16 = 24
+)
+
+// Common sizes and masks.
+const (
+	size1  = 1
+	size2  = 2
+	size4  = 4
+	size6  = 6
+	size8  = 8
+	size16 = 16
+)
+
+const ipv6FlowLabelMask uint32 = 0x000FFFFF
+
+// ParseFieldValue parses the value of a field based on its type.
 func ParseFieldValue(fieldType uint16, data []byte, length uint16) interface{} {
 	switch fieldType {
-	case 1, 2, 3, 23, 24: // IN_BYTES, IN_PKTS, FLOWS, OUT_BYTES, OUT_PKTS
+	case ftInBytes, ftInPkts, ftFlows, ftOutBytes, ftOutPkts: // IN_BYTES, IN_PKTS, FLOWS, OUT_BYTES, OUT_PKTS
 		return bytesToUint64(data)
-	case 4: // PROTOCOL
-		if len(data) >= 1 {
+	case ftProtocol: // PROTOCOL
+		if len(data) >= size1 {
 			return data[0]
 		}
-	case 5: // SRC_TOS
-		if len(data) >= 1 {
+	case ftSrcTOS: // SRC_TOS
+		if len(data) >= size1 {
 			return data[0]
 		}
-	case 6: // TCP_FLAGS
-		if len(data) >= 1 {
+	case ftTCPFlags: // TCP_FLAGS
+		if len(data) >= size1 {
 			return data[0]
 		}
-	case 7, 11: // L4_SRC_PORT, L4_DST_PORT
-		if len(data) >= 2 {
+	case ftL4SrcPort, ftL4DstPort: // L4_SRC_PORT, L4_DST_PORT
+		if len(data) >= size2 {
 			return binary.BigEndian.Uint16(data)
 		}
-	case 8, 12, 15: // IPV4_SRC_ADDR, IPV4_DST_ADDR, IPV4_NEXT_HOP
+	case ftIPv4SrcAddr, ftIPv4DstAddr, ftIPv4NextHop: // IPV4_SRC_ADDR, IPV4_DST_ADDR, IPV4_NEXT_HOP
 		return parseIPv4(data)
-	case 10, 14, 21, 22, 34: // INPUT_SNMP, OUTPUT_SNMP, LAST_SWITCHED, FIRST_SWITCHED, SAMPLING_INTERVAL
-		if len(data) >= 4 {
+	case ftInputSNMP, ftOutputSNMP, ftLastSwitched, ftFirstSwitched, ftSamplingInterval: // INPUT_SNMP, OUTPUT_SNMP, LAST_SWITCHED, FIRST_SWITCHED, SAMPLING_INTERVAL
+		if len(data) >= size4 {
 			return binary.BigEndian.Uint32(data)
 		}
-	case 16, 17: // SRC_AS, DST_AS
-		if len(data) >= 2 {
+	case ftSrcAS, ftDstAS: // SRC_AS, DST_AS
+		if len(data) >= size2 {
 			return binary.BigEndian.Uint16(data)
-		} else if len(data) >= 4 {
+		} else if len(data) >= size4 {
 			return binary.BigEndian.Uint32(data)
 		}
-	case 27, 28, 62: // IPV6_SRC_ADDR, IPV6_DST_ADDR, IPV6_NEXT_HOP
+	case ftIPv6SrcAddr, ftIPv6DstAddr, ftIPv6NextHop: // IPV6_SRC_ADDR, IPV6_DST_ADDR, IPV6_NEXT_HOP
 		return parseIPv6(data)
-	case 31: // IPV6_FLOW_LABEL
-		if len(data) >= 4 {
-			return binary.BigEndian.Uint32(data) & 0x000FFFFF
+	case ftIPv6FlowLabel: // IPV6_FLOW_LABEL
+		if len(data) >= size4 {
+			return binary.BigEndian.Uint32(data) & ipv6FlowLabelMask
 		}
-	case 32: // ICMP_TYPE
-		if len(data) >= 2 {
+	case ftICMPType: // ICMP_TYPE
+		if len(data) >= size2 {
 			return map[string]uint8{"type": data[0], "code": data[1]}
 		}
-	case 35: // SAMPLING_ALGORITHM
-		if len(data) >= 1 {
+	case ftSamplingAlgorithm: // SAMPLING_ALGORITHM
+		if len(data) >= size1 {
 			return data[0]
 		}
-	case 56, 57, 80, 81: // SRC_MAC, DST_MAC, IN_DST_MAC, OUT_SRC_MAC
+	case ftSrcMAC, ftDstMAC, ftInDstMAC, ftOutSrcMAC: // SRC_MAC, DST_MAC, IN_DST_MAC, OUT_SRC_MAC
 		return parseMAC(data)
-	case 58, 59: // SRC_VLAN, DST_VLAN
-		if len(data) >= 2 {
+	case ftSrcVLAN, ftDstVLAN: // SRC_VLAN, DST_VLAN
+		if len(data) >= size2 {
 			return binary.BigEndian.Uint16(data)
 		}
-	case 60: // IP_PROTOCOL_VERSION
-		if len(data) >= 1 {
+	case ftIPProtocolVersion: // IP_PROTOCOL_VERSION
+		if len(data) >= size1 {
 			return data[0]
 		}
 	default:
-		if length <= 8 {
+		if length <= size8 {
 			return bytesToUint64(data)
 		}
 		return data
@@ -73,7 +125,7 @@ func ParseFieldValue(fieldType uint16, data []byte, length uint16) interface{} {
 	return nil
 }
 
-// Returns the name of a field by its type
+// GetFieldName returns the name of a field by its type.
 func GetFieldName(fieldType uint16) string {
 	fieldNames := map[uint16]string{
 		1:   "IN_BYTES",
@@ -512,7 +564,7 @@ func GetFieldName(fieldType uint16) string {
 	return fmt.Sprintf("UNKNOWN_%d", fieldType)
 }
 
-// Returns the protocol name
+// GetProtocolName returns the protocol name.
 func GetProtocolName(protocol uint8) string {
 	protocols := map[uint8]string{
 		0:   "HOPOPT",
@@ -667,10 +719,10 @@ func GetProtocolName(protocol uint8) string {
 	if name, exists := protocols[protocol]; exists {
 		return name
 	}
-	return "Unknown"
+	return unknownLabel
 }
 
-// Returns the service name by port
+// GetServiceName returns the service name by port.
 func GetServiceName(port uint16) string {
 	services := map[uint16]string{
 		20:    "FTP-DATA",
@@ -763,10 +815,10 @@ func GetServiceName(port uint16) string {
 	if name, exists := services[port]; exists {
 		return name
 	}
-	return "Unknown"
+	return unknownLabel
 }
 
-// Returns the type of sampling algorithm
+// GetSamplingAlgorithmName returns the type of sampling algorithm.
 func GetSamplingAlgorithmName(algorithm uint8) string {
 	samplingAlgorithms := map[uint8]string{
 		0:  "Unknown / Not Used",
@@ -874,10 +926,10 @@ func GetSamplingAlgorithmName(algorithm uint8) string {
 	if name, exists := samplingAlgorithms[algorithm]; exists {
 		return name
 	}
-	return "Unknown"
+	return unknownLabel
 }
 
-// Returns the IP version
+// GetIPVersionName returns the IP version.
 func GetIPVersionName(version uint8) string {
 	ipVersions := map[uint8]string{
 		4: "IPv4",
@@ -887,24 +939,25 @@ func GetIPVersionName(version uint8) string {
 	if name, exists := ipVersions[version]; exists {
 		return name
 	}
-	return "Unknown"
+	return unknownLabel
 }
 
-// Returns the flow version
+// GetFlowVersionName returns the flow version.
 func GetFlowVersionName(version uint16) string {
 	switch version {
-	case 9:
+	case versionNetFlowV9:
 		return "NetFlow v9"
-	case 10:
+	case versionIPFix:
 		return "IPFix"
 	default:
 		return fmt.Sprintf("Unknown (%d)", version)
 	}
 }
 
-// Returns the domain name
+// GetDomainName returns the domain name.
 func GetDomainName(ip string) string {
-	names, err := net.LookupAddr(ip)
+	resolver := net.Resolver{}
+	names, err := resolver.LookupAddr(context.Background(), ip)
 	if err != nil || len(names) == 0 {
 		return ""
 	}
@@ -913,7 +966,7 @@ func GetDomainName(ip string) string {
 	return domain
 }
 
-// Parses TCP flags
+// ParseTCPFlags parses TCP flags.
 func ParseTCPFlags(flags uint8) string {
 	var result string
 	if flags&0x01 != 0 {
@@ -946,7 +999,7 @@ func ParseTCPFlags(flags uint8) string {
 	return result
 }
 
-// Formats the field value for output
+// FormatFieldValue formats the field value for output.
 func FormatFieldValue(fieldType uint16, value interface{}) string {
 	switch v := value.(type) {
 	case uint64:
@@ -954,28 +1007,28 @@ func FormatFieldValue(fieldType uint16, value interface{}) string {
 	case uint32:
 		return fmt.Sprintf("%d", v)
 	case uint16:
-		if fieldType == 7 || fieldType == 11 { // Port
+		if fieldType == ftL4SrcPort || fieldType == ftL4DstPort { // Port
 			return fmt.Sprintf("%d (%s)", v, GetServiceName(v))
 		}
 		return fmt.Sprintf("%d", v)
 	case uint8:
-		if fieldType == 4 { // Protocol
+		if fieldType == ftProtocol { // Protocol
 			return fmt.Sprintf("%d (%s)", v, GetProtocolName(v))
 		}
-		if fieldType == 6 { // TCP flags
+		if fieldType == ftTCPFlags { // TCP flags
 			return fmt.Sprintf("0x%02x (%s)", v, ParseTCPFlags(v))
 		}
-		if fieldType == 35 { // Sampling algorithm
+		if fieldType == ftSamplingAlgorithm { // Sampling algorithm
 			return fmt.Sprintf("%d (%s)", v, GetSamplingAlgorithmName(v))
 		}
-		if fieldType == 60 { // IP version
+		if fieldType == ftIPProtocolVersion { // IP version
 			return fmt.Sprintf("%d (%s)", v, GetIPVersionName(v))
 		}
 		return fmt.Sprintf("%d", v)
 	case string:
 		return v
 	case map[string]uint8:
-		if fieldType == 32 { // ICMP type/code
+		if fieldType == ftICMPType { // ICMP type/code
 			return fmt.Sprintf("type=%d code=%d", v["type"], v["code"])
 		}
 		return fmt.Sprintf("%v", v)
@@ -985,14 +1038,14 @@ func FormatFieldValue(fieldType uint16, value interface{}) string {
 }
 
 func parseIPv4(data []byte) string {
-	if len(data) != 4 {
+	if len(data) != size4 {
 		return fmt.Sprintf("Invalid IPv4 (%d bytes)", len(data))
 	}
 	return fmt.Sprintf("%d.%d.%d.%d", data[0], data[1], data[2], data[3])
 }
 
 func parseIPv6(data []byte) string {
-	if len(data) != 16 {
+	if len(data) != size16 {
 		return fmt.Sprintf("Invalid IPv6 (%d bytes)", len(data))
 	}
 	return fmt.Sprintf("%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
@@ -1001,7 +1054,7 @@ func parseIPv6(data []byte) string {
 }
 
 func parseMAC(data []byte) string {
-	if len(data) != 6 {
+	if len(data) != size6 {
 		return fmt.Sprintf("Invalid MAC (%d bytes)", len(data))
 	}
 	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",

@@ -6,17 +6,25 @@ import (
 	"time"
 )
 
-// NetFlow/IPFix core parser
+const (
+	defaultTemplateTimeout = 30 * time.Minute
+	versionShiftBits       = 8
+	versionNetFlowV9       = 9
+	versionIPFix           = 10
+	minPacketHeaderLen     = 4
+)
+
+// Parser is the NetFlow/IPFIX core parser.
 type Parser struct {
 	templates *TemplateCache
 }
 
-// Parser configuration
+// Config is the parser configuration.
 type Config struct {
 	TemplateTimeout time.Duration
 }
 
-// Parsing result
+// Packet is a parsing result.
 type Packet struct {
 	Version    uint16
 	Count      uint16
@@ -29,7 +37,7 @@ type Packet struct {
 	FlowSets   []FlowSet
 }
 
-// Creates a new parser
+// NewParser creates a new parser.
 func NewParser(config ...Config) *Parser {
 	cfg := Config{}
 	if len(config) > 0 {
@@ -37,7 +45,7 @@ func NewParser(config ...Config) *Parser {
 	}
 
 	if cfg.TemplateTimeout == 0 {
-		cfg.TemplateTimeout = 30 * time.Minute
+		cfg.TemplateTimeout = defaultTemplateTimeout
 	}
 
 	return &Parser{
@@ -45,39 +53,39 @@ func NewParser(config ...Config) *Parser {
 	}
 }
 
-// Parses a NetFlow/IPFix packet
+// Parse parses a NetFlow/IPFIX packet.
 func (p *Parser) Parse(data []byte, sourceAddr net.IP) (*Packet, error) {
-	if len(data) < 4 {
+	if len(data) < minPacketHeaderLen {
 		return nil, fmt.Errorf("packet too short: %d bytes", len(data))
 	}
 
 	version := getVersion(data)
 
 	switch version {
-	case 9:
+	case versionNetFlowV9:
 		return ParseNetFlowV9(data, sourceAddr, p.templates)
-	case 10:
+	case versionIPFix:
 		return ParseIPFix(data, sourceAddr, p.templates)
 	default:
 		return nil, fmt.Errorf("unsupported version: %d", version)
 	}
 }
 
-// Returns current templates
+// GetTemplates returns current templates.
 func (p *Parser) GetTemplates() map[uint16]*TemplateRecord {
 	return p.templates.GetAll()
 }
 
-// Clears the template cache
+// ClearTemplates clears the template cache.
 func (p *Parser) ClearTemplates() {
 	p.templates.Clear()
 }
 
-// Returns a specific template
+// GetTemplate returns a specific template.
 func (p *Parser) GetTemplate(templateID uint16) *TemplateRecord {
 	return p.templates.Get(templateID)
 }
 
 func getVersion(data []byte) uint16 {
-	return (uint16(data[0]) << 8) | uint16(data[1])
+	return (uint16(data[0]) << versionShiftBits) | uint16(data[1])
 }

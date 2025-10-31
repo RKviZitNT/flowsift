@@ -1,3 +1,4 @@
+// Package main provides an example UDP NetFlow/IPFIX collector using flowsift.
 package main
 
 import (
@@ -9,10 +10,15 @@ import (
 	"github.com/RKviZitNT/flowsift"
 )
 
+const (
+    collectorTemplateTimeout = 30 * time.Minute
+    udpBufferSize            = 8192
+)
+
 func main() {
-	parser := flowsift.NewParser(flowsift.Config{
-		TemplateTimeout: 30 * time.Minute,
-	})
+    parser := flowsift.NewParser(flowsift.Config{
+        TemplateTimeout: collectorTemplateTimeout,
+    })
 
 	addr, err := net.ResolveUDPAddr("udp", ":2055")
 	if err != nil {
@@ -23,12 +29,16 @@ func main() {
 	if err != nil {
 		log.Fatal("Error listening on UDP:", err)
 	}
-	defer conn.Close()
+    defer func() {
+        if err := conn.Close(); err != nil {
+            log.Printf("error closing UDP conn: %v", err)
+        }
+    }()
 
 	fmt.Println("NetFlow/IPFix Collector started on port 2055...")
 	fmt.Printf("Loaded templates: %d\n", len(parser.GetTemplates()))
 
-	buffer := make([]byte, 8192)
+    buffer := make([]byte, udpBufferSize)
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buffer)
 		if err != nil {

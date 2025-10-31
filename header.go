@@ -1,5 +1,6 @@
 package flowsift
 
+// NetFlowV9Header represents a NetFlow v9 header.
 type NetFlowV9Header struct {
 	Version   uint16
 	Count     uint16
@@ -9,6 +10,7 @@ type NetFlowV9Header struct {
 	SourceID  uint32
 }
 
+// IPFixHeader represents an IPFIX header.
 type IPFixHeader struct {
 	Version             uint16
 	Length              uint16
