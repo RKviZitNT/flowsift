@@ -1,157 +1,156 @@
+// Package flowsift provides a NetFlow v9 and IPFIX parser with template caching.
 package flowsift
 
 import (
-	"encoding/binary"
-	"fmt"
-	"net"
-	"time"
+    "encoding/binary"
+    "fmt"
+    "net"
+    "time"
 )
 
-// Parses a NetFlow v9 packet
-func ParseNetFlowV9(data []byte, sourceAddr net.IP, templates *TemplateCache) (*Packet, error) {
-	if len(data) < 20 {
-		return nil, fmt.Errorf("NetFlow v9 packet too short: %d bytes", len(data))
-	}
+const (
+    netFlowV9HeaderLen = 20
+    ipfixHeaderLen     = 16
+    flowSetHeaderLen   = 4
+    dataFlowSetMinID   = 256
+    padAlignment       = 4
 
-	header := parseNetFlowV9Header(data[:20])
+    flowSetIDTemplateV9       uint16 = 0
+    flowSetIDOptionsTemplateV9 uint16 = 1
+    flowSetIDTemplateIPFix    uint16 = 2
+    flowSetIDOptionsIPFix     uint16 = 3
+    byteShiftBits                    = 8
+)
 
-	packet := &Packet{
-		Version:    header.Version,
-		Count:      header.Count,
-		SysUptime:  header.SysUptime,
-		UnixSec:    header.UnixSec,
-		Sequence:   header.Sequence,
-		SourceID:   header.SourceID,
-		SourceAddr: sourceAddr,
-		Timestamp:  time.Unix(int64(header.UnixSec), 0),
-		FlowSets:   make([]FlowSet, 0),
-	}
+type flowSetHandler func(flowSetID uint16, flowSetData []byte) (FlowSet, error)
 
-	offset := 20
-	for offset+4 <= len(data) {
-		flowSetID := binary.BigEndian.Uint16(data[offset : offset+2])
-		length := binary.BigEndian.Uint16(data[offset+2 : offset+4])
+func parseFlowSets(data []byte, startOffset int, handler flowSetHandler) ([]FlowSet, error) {
+    var result []FlowSet
+    offset := startOffset
+    for offset+flowSetHeaderLen <= len(data) {
+        flowSetID := binary.BigEndian.Uint16(data[offset : offset+2])
+        length := binary.BigEndian.Uint16(data[offset+2 : offset+4])
 
-		if length < 4 {
-			return nil, fmt.Errorf("invalid FlowSet length: %d", length)
-		}
+        if length < flowSetHeaderLen {
+            return nil, fmt.Errorf("invalid FlowSet length: %d", length)
+        }
 
-		if offset+int(length) > len(data) {
-			return nil, fmt.Errorf("FlowSet length %d exceeds packet size", length)
-		}
+        if offset+int(length) > len(data) {
+            return nil, fmt.Errorf("FlowSet length %d exceeds packet size", length)
+        }
 
-		flowSetData := data[offset : offset+int(length)]
+        flowSetData := data[offset : offset+int(length)]
 
-		var flowSet FlowSet
-		var err error
+        fs, err := handler(flowSetID, flowSetData)
+        if err != nil {
+            return nil, err
+        }
+        if fs != nil {
+            result = append(result, fs)
+        }
 
-		switch {
-		case flowSetID == 0:
-			flowSet, err = parseTemplateFlowSet(flowSetData)
-			if err == nil {
-				if templateFlowSet, ok := flowSet.(*TemplateFlowSet); ok {
-					for _, template := range templateFlowSet.Templates {
-						templates.Add(sourceAddr.String(), template.TemplateID, &template)
-					}
-				}
-			}
-		case flowSetID == 1:
-			flowSet, err = parseOptionsTemplateFlowSet(flowSetData)
-		case flowSetID >= 256:
-			template := templates.Get(flowSetID)
-			if template != nil {
-				flowSet, err = parseDataFlowSet(flowSetData, flowSetID, template)
-			} else {
-				return nil, fmt.Errorf("template not found for FlowSet ID %d (source: %s)", flowSetID, sourceAddr.String())
-			}
-		default:
-			return nil, fmt.Errorf("unknown FlowSet ID: %d", flowSetID)
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		if flowSet != nil {
-			packet.FlowSets = append(packet.FlowSets, flowSet)
-		}
-
-		offset += int(length)
-	}
-
-	return packet, nil
+        offset += int(length)
+    }
+    return result, nil
 }
 
-// Parses the IPFix packet
+// ParseNetFlowV9 parses a NetFlow v9 packet.
+func ParseNetFlowV9(data []byte, sourceAddr net.IP, templates *TemplateCache) (*Packet, error) {
+    if len(data) < netFlowV9HeaderLen {
+        return nil, fmt.Errorf("NetFlow v9 packet too short: %d bytes", len(data))
+    }
+
+    header := parseNetFlowV9Header(data[:netFlowV9HeaderLen])
+
+    packet := &Packet{
+        Version:    header.Version,
+        Count:      header.Count,
+        SysUptime:  header.SysUptime,
+        UnixSec:    header.UnixSec,
+        Sequence:   header.Sequence,
+        SourceID:   header.SourceID,
+        SourceAddr: sourceAddr,
+        Timestamp:  time.Unix(int64(header.UnixSec), 0),
+        FlowSets:   make([]FlowSet, 0),
+    }
+
+    handler := func(flowSetID uint16, flowSetData []byte) (FlowSet, error) {
+        switch {
+        case flowSetID == flowSetIDTemplateV9:
+            fs, err := parseTemplateFlowSet(flowSetData)
+            if err == nil {
+                for _, template := range fs.Templates {
+                    templates.Add(sourceAddr.String(), template.TemplateID, &template)
+                }
+            }
+            return fs, err
+        case flowSetID == flowSetIDOptionsTemplateV9:
+            return parseOptionsTemplateFlowSet(flowSetData)
+        case flowSetID >= dataFlowSetMinID:
+            template := templates.Get(flowSetID)
+            if template != nil {
+                return parseDataFlowSet(flowSetData, flowSetID, template)
+            }
+            return nil, fmt.Errorf("template not found for FlowSet ID %d (source: %s)", flowSetID, sourceAddr.String())
+        default:
+            return nil, fmt.Errorf("unknown FlowSet ID: %d", flowSetID)
+        }
+    }
+
+    flowSets, err := parseFlowSets(data, netFlowV9HeaderLen, handler)
+    if err != nil {
+        return nil, err
+    }
+    packet.FlowSets = append(packet.FlowSets, flowSets...)
+    return packet, nil
+}
+
+// ParseIPFix parses an IPFIX packet.
 func ParseIPFix(data []byte, sourceAddr net.IP, templates *TemplateCache) (*Packet, error) {
-	if len(data) < 16 {
-		return nil, fmt.Errorf("IPFix packet too short: %d bytes", len(data))
-	}
+    if len(data) < ipfixHeaderLen {
+        return nil, fmt.Errorf("IPFix packet too short: %d bytes", len(data))
+    }
 
-	header := parseIPFixHeader(data[:16])
+    header := parseIPFixHeader(data[:ipfixHeaderLen])
 
-	packet := &Packet{
-		Version:    header.Version,
-		Sequence:   header.Sequence,
-		SourceID:   header.ObservationDomainID,
-		SourceAddr: sourceAddr,
-		Timestamp:  time.Unix(int64(header.ExportTime), 0),
-		FlowSets:   make([]FlowSet, 0),
-	}
+    packet := &Packet{
+        Version:    header.Version,
+        Sequence:   header.Sequence,
+        SourceID:   header.ObservationDomainID,
+        SourceAddr: sourceAddr,
+        Timestamp:  time.Unix(int64(header.ExportTime), 0),
+        FlowSets:   make([]FlowSet, 0),
+    }
 
-	offset := 16
-	for offset+4 <= len(data) {
-		flowSetID := binary.BigEndian.Uint16(data[offset : offset+2])
-		length := binary.BigEndian.Uint16(data[offset+2 : offset+4])
+    handler := func(flowSetID uint16, flowSetData []byte) (FlowSet, error) {
+        switch {
+        case flowSetID == flowSetIDTemplateIPFix:
+            fs, err := parseIPFixTemplateFlowSet(flowSetData)
+            if err == nil {
+                for _, template := range fs.Templates {
+                    templates.Add(sourceAddr.String(), template.TemplateID, &template)
+                }
+            }
+            return fs, err
+        case flowSetID == flowSetIDOptionsIPFix:
+            return parseIPFixOptionsTemplateFlowSet(flowSetData)
+        case flowSetID >= dataFlowSetMinID:
+            template := templates.Get(flowSetID)
+            if template != nil {
+                return parseIPFixDataFlowSet(flowSetData, flowSetID, template)
+            }
+            return nil, fmt.Errorf("template not found for FlowSet ID %d (source: %s)", flowSetID, sourceAddr.String())
+        default:
+            return nil, fmt.Errorf("unknown FlowSet ID: %d", flowSetID)
+        }
+    }
 
-		if length < 4 {
-			return nil, fmt.Errorf("invalid FlowSet length: %d", length)
-		}
-
-		if offset+int(length) > len(data) {
-			return nil, fmt.Errorf("FlowSet length %d exceeds packet size", length)
-		}
-
-		flowSetData := data[offset : offset+int(length)]
-
-		var flowSet FlowSet
-		var err error
-
-		switch {
-		case flowSetID == 2:
-			flowSet, err = parseIPFixTemplateFlowSet(flowSetData)
-			if err == nil {
-				if templateFlowSet, ok := flowSet.(*TemplateFlowSet); ok {
-					for _, template := range templateFlowSet.Templates {
-						templates.Add(sourceAddr.String(), template.TemplateID, &template)
-					}
-				}
-			}
-		case flowSetID == 3:
-			flowSet, err = parseIPFixOptionsTemplateFlowSet(flowSetData)
-		case flowSetID >= 256:
-			template := templates.Get(flowSetID)
-			if template != nil {
-				flowSet, err = parseIPFixDataFlowSet(flowSetData, flowSetID, template)
-			} else {
-				return nil, fmt.Errorf("template not found for FlowSet ID %d (source: %s)", flowSetID, sourceAddr.String())
-			}
-		default:
-			return nil, fmt.Errorf("unknown FlowSet ID: %d", flowSetID)
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		if flowSet != nil {
-			packet.FlowSets = append(packet.FlowSets, flowSet)
-		}
-
-		offset += int(length)
-	}
-
-	return packet, nil
+    flowSets, err := parseFlowSets(data, ipfixHeaderLen, handler)
+    if err != nil {
+        return nil, err
+    }
+    packet.FlowSets = append(packet.FlowSets, flowSets...)
+    return packet, nil
 }
 
 func parseNetFlowV9Header(data []byte) NetFlowV9Header {
@@ -303,13 +302,13 @@ func parseIPFixDataFlowSet(data []byte, flowSetID uint16, template *TemplateReco
 }
 
 func calculatePadding(length int) int {
-	return (4 - (length % 4)) % 4
+    return (padAlignment - (length % padAlignment)) % padAlignment
 }
 
 func bytesToUint64(data []byte) uint64 {
-	var value uint64
-	for _, b := range data {
-		value = value<<8 | uint64(b)
-	}
-	return value
+    var value uint64
+    for _, b := range data {
+        value = value<<byteShiftBits | uint64(b)
+    }
+    return value
 }
